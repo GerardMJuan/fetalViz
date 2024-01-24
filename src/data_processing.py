@@ -4,46 +4,40 @@ import io
 import tempfile
 import numpy as np
 import copy
+import streamlit as st
 
-
+@st.cache_data
 def load_csv_data(uploaded_file):
     data = pd.read_csv(uploaded_file)
     return data
 
-
+@st.cache_data
 def load_mri_data(uploaded_seg, uploaded_struct):
     struct_data = None
     seg_data = None
 
-    with tempfile.NamedTemporaryFile(suffix=".nii.gz") as tmp_seg:
-        tmp_seg.write(uploaded_seg.read())
-        tmp_seg.seek(0)
-        seg_img = nib.load(tmp_seg.name)
+    seg_img = nib.load(uploaded_seg)
 
-        seg_data = seg_img.__class__(
-            seg_img.get_fdata(), seg_img.affine, seg_img.header
-        )
+    seg_data = seg_img.__class__(
+        seg_img.get_fdata(), seg_img.affine, seg_img.header
+    )
 
-    with tempfile.NamedTemporaryFile(suffix=".nii.gz") as tmp_struct:
-        tmp_struct.write(uploaded_struct.read())
-        tmp_struct.seek(0)
-        struct_img = nib.load(tmp_struct.name)
+    struct_img = nib.load(uploaded_struct)
 
-        struct_data = struct_img.__class__(
-            struct_img.get_fdata(), struct_img.affine, struct_img.header
-        )
+    struct_data = struct_img.__class__(
+        struct_img.get_fdata(), struct_img.affine, struct_img.header
+    )
 
     return seg_data, struct_data
-
 
 def squeeze_dim(arr, dim):
     if arr.shape[dim] == 1 and len(arr.shape) > 3:
         return np.squeeze(arr, axis=dim)
     return arr
 
-
+@st.cache_data
 def get_cropped_stack_based_on_mask(
-    image_ni, mask_ni, boundary_i=15, boundary_j=15, boundary_k=0, unit="mm"
+    _image_ni, _mask_ni, boundary_i=15, boundary_j=15, boundary_k=0, unit="mm"
 ):
     """
     Crops the input image to the field of view given by the bounding box
@@ -71,7 +65,8 @@ def get_cropped_stack_based_on_mask(
         Mask cropped to its bounding box
     """
 
-    image_ni = copy.deepcopy(image_ni)
+    image_ni = copy.deepcopy(_image_ni)
+    mask_ni = copy.deepcopy(_mask_ni)
 
     image = squeeze_dim(image_ni.get_fdata(), -1)
     mask = squeeze_dim(mask_ni.get_fdata(), -1)
@@ -108,16 +103,16 @@ def get_cropped_stack_based_on_mask(
             mask_ni.affine, [x_range[0], y_range[0], z_range[0]]
         )
     ) + [1]
+
     new_affine = image_ni.affine
     new_affine[:, -1] = new_origin
     image_cropped = crop_image_to_region(image, x_range, y_range, z_range)
-    image_cropped = nib.Nifti1Image(image_cropped, new_affine)
-    # image_cropped.header.set_xyzt_units(2)
-    # image_cropped.header.set_qform(new_affine, code="aligned")
-    # image_cropped.header.set_sform(new_affine, code="scanner")
-    return image_cropped
+    mask_cropped = crop_image_to_region(mask, x_range, y_range, z_range)
+    # image_cropped = nib.Nifti1Image(image_cropped, new_affine)
+    return image_cropped, mask_cropped
 
 
+@st.cache_data
 def crop_image_to_region(
     image: np.ndarray,
     range_x: np.ndarray,
@@ -151,13 +146,9 @@ def crop_image_to_region(
         range_z[0] : range_z[1],
     ]
     return image_cropped
-    # Return rectangular region surrounding masked region.
-    #  \param[in] mask_sitk sitk.Image representing the mask
-    #  \return range_x pair defining x interval of mask in voxel space
-    #  \return range_y pair defining y interval of mask in voxel space
-    #  \return range_z pair defining z interval of mask in voxel space
 
 
+@st.cache_data
 def get_rectangular_masked_region(
     mask: np.ndarray,
 ) -> tuple:

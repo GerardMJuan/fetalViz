@@ -8,48 +8,39 @@ from src.visualization import (
     plot_mri_slices,
     plot_mri_slices_col,
 )  # Assume plot_mri_slices is defined in visualization.py
+from src.sidebar import create_sidebar
 import ipywidgets as widgets
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
+import json
+import os
+import glob 
+
+if 'seg_enabled' not in st.session_state:
+    st.session_state['seg_enabled'] = False
 
 st.title("Fetal MRI Biomarker Visualization")
 
-uploaded_file = st.file_uploader("Choose a CSV file", type="csv")
+uploaded_seg, uploaded_struct, df_data, config_model = create_sidebar()
 
-if uploaded_file is not None:
-    data = load_csv_data(uploaded_file)
-    st.write(data)  # This will display the dataframe in Streamlit
-
-# Upload MRI files
-uploaded_seg = st.file_uploader(
-    "Upload a segmentation file (_dseg.nii.gz)", type=["nii.gz"]
-)
-uploaded_struct = st.file_uploader(
-    "Upload a structural scan file (_T2w.nii.gz)", type=["nii.gz"]
-)
+# Print current directory
+# st.write(os.getcwd())
 
 
 if uploaded_seg is not None and uploaded_struct is not None:
     segmentation, structural = load_mri_data(uploaded_seg, uploaded_struct)
 
     # process MRI data to be displayed
-    image_cropped = get_cropped_stack_based_on_mask(structural, segmentation)
-    mask_cropped = get_cropped_stack_based_on_mask(segmentation, segmentation)
-
-    # initialize session state
-    st.session_state["seg_disabled"] = False
+    image_cropped, mask_cropped = get_cropped_stack_based_on_mask(structural, segmentation)
 
     col1, col2 = st.columns(2)
 
-    def disable():
-        st.session_state["seg_disabled"] = not st.session_state["seg_disabled"]
-
     with col1:
-        show_segmentation = st.checkbox(
-            "Segmentation", key="but_a", on_change=disable
+        st.session_state["seg_enabled"] = st.checkbox(
+            "Show segmentation",
+            key="but_a",
         )
-
     with col2:
         transparency = st.slider(
             "Segmentation transparency",
@@ -57,15 +48,17 @@ if uploaded_seg is not None and uploaded_struct is not None:
             max_value=1.0,
             value=0.5,
             step=0.01,
-            disabled=st.session_state["seg_disabled"],
+            disabled=not st.session_state["seg_enabled"],
         )
 
     plot_mri_slices_col(
-        mask_cropped.get_fdata(),
-        image_cropped.get_fdata(),
-        show_segmentation,
+        mask_cropped,
+        image_cropped,
+        st.session_state["seg_enabled"],
         transparency,
+        config_model["segmentation"]["color_map"],
     )
+
     # Sample data
     np.random.seed(42)  # for reproducibility
     data = {
@@ -97,8 +90,20 @@ if uploaded_seg is not None and uploaded_struct is not None:
                 group["Age"], group["Volume"], label=lbl, s=30, alpha=0.3
             )
 
-    current_subject_age = 25  # for example
-    current_subject_volume = 110  # for example
+    current_subject_age = st.slider(
+        "Select current subject age",
+        min_value=20,
+        max_value=40,
+        value=25,
+    )
+
+    current_subject_volume = st.slider(
+        "Select current subject volume",
+        min_value=80,
+        max_value=120,
+        value=110,
+    )
+
     ax.scatter(
         current_subject_age,
         current_subject_volume,
