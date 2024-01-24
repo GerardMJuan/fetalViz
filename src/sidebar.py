@@ -3,6 +3,7 @@ import json
 import os
 import glob 
 import pandas as pd
+from . import visualization
 
 @st.cache_data
 def load_config_model(config_file):
@@ -14,10 +15,6 @@ def load_config_model(config_file):
 def create_sidebar():
     # Create a sidebar
     st.sidebar.title("Navigation")
-    app_mode = st.sidebar.selectbox(
-        "Choose the app mode",
-        ["Show instructions", "Run the app", "Show the source code"],
-    )
 
     # Get all .json files in data/
     config_files = glob.glob('data/*.json')
@@ -57,5 +54,25 @@ def create_sidebar():
 
         seg_path = os.path.join(subject_path, f"{subject}{config_model['general']['seg_suffix']}")
         T2w_path = os.path.join(subject_path, f"{subject}{config_model['general']['rec_suffix']}")
+
+
+    #TODO: create a sidebar legend for the segmentation colors
+
+    # From the config, get the colors
+    segmentation_colors = config_model["segmentation"]["color_map"]
+
+    # Get also the segmentation labels dict, number (str): name (str)
+    segmentation_labels = config_model["segmentation"]["labels"]
+
+    # and the long names, dict, name (str): long name (str)
+    segmentation_long_names = config_model["segmentation"]["labels_long"]
+
+    with st.sidebar.expander("Segmentation legend", expanded=False):
+        # test message
+        fig = visualization.plot_legend(segmentation_colors, segmentation_labels, segmentation_long_names)
+
+        st.pyplot(fig)
+
+
 
     return seg_path, T2w_path, df_subjects, config_model

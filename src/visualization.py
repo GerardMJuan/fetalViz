@@ -110,6 +110,52 @@ def convert_to_grayscale(data_slice):
 
     return data_slice
 
+
+@st.cache_data
+def plot_legend(segmentation_colors, segmentation_labels, segmentation_long_names):
+    """Create, with matplotlib, a legend for the segmentation colors.
+
+    The legend should be a single column, with the segmentation color on the left, in a square, and the long label on the right. One line per segmentation label.
+
+    Returns
+    -------
+    fig : matplotlib figure    
+    """
+
+    # Create Matplotlib figure and subplots for each view
+    fig, ax = plt.subplots(1, 1)  # Increase the size of the legend
+    fig.patch.set_alpha(0.0)  # Set the figure background to be transparent
+
+    # Create a list of patches
+    patches = []
+
+    # Create a list of labels
+    labels = []
+
+    # Loop over the segmentation colors
+    for label, color in segmentation_colors.items():
+        # Create a patch for the color
+        patch = plt.Rectangle((0, 0), 1, 1, fc=color, alpha=0.5)
+        patches.append(patch)
+        label_short = segmentation_labels[label]
+
+        # Create a label for the color
+        label = segmentation_long_names[label_short]
+        labels.append(label)
+    
+    # Create the legend
+    legend = ax.legend(patches, labels, loc='center', ncol=1, framealpha=0.0)
+    for text in legend.get_texts():
+        text.set_color("white")
+
+    # Hide axes ticks and labels
+    ax.axis("off")
+    plt.tight_layout(pad=15.5)
+
+    return fig
+
+
+
 @st.cache_data
 def overlay_images(image, segmentation, alpha, color_map):
     """
