@@ -32,7 +32,7 @@ def create_sidebar():
     df_subjects = pd.read_csv(config_model["general"]['csv_path'])
 
     # extract subjects
-    subject_list = df_subjects[config_model["general"]['subject_key']].values
+    subject_list = sorted(df_subjects[config_model["general"]['subject_key']].values)
 
     # create a sidebar selectbox for each subject. Populate with subject list
     subject = st.sidebar.selectbox(
@@ -56,8 +56,6 @@ def create_sidebar():
         T2w_path = os.path.join(subject_path, f"{subject}{config_model['general']['rec_suffix']}")
 
 
-    #TODO: create a sidebar legend for the segmentation colors
-
     # From the config, get the colors
     segmentation_colors = config_model["segmentation"]["color_map"]
 
@@ -73,6 +71,4 @@ def create_sidebar():
 
         st.pyplot(fig)
 
-
-
-    return seg_path, T2w_path, df_subjects, config_model
+    return seg_path, T2w_path, df_subjects, config_model, subject

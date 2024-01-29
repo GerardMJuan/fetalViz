@@ -206,9 +206,11 @@ def plot_mri_slices_col(segmentation_data, structural_data, show_segmentation, t
 
     # Sagittal view with its slider
     with col1:
-        st.markdown("<h3 style='text-align: center; color: white;'>Saggital</h3>", unsafe_allow_html=True)
+        st.markdown("<h3 style='text-align: center; color: white;'>Sagittal</h3>", unsafe_allow_html=True)
         idx_x = st.slider("slider_x", 0, x_max - 1, int(x_max / 2), key="x_slider", label_visibility="hidden")
         displayed_image_x = overlays[idx_x, :, :] if show_segmentation else grayscale_images[idx_x, :, :]
+        # Rotate the image 90 degrees counterclockwise
+        displayed_image_x = np.rot90(displayed_image_x)
         st.image(resize_image(displayed_image_x), use_column_width=True)
 
     # Coronal view with its slider
@@ -216,6 +218,9 @@ def plot_mri_slices_col(segmentation_data, structural_data, show_segmentation, t
         st.markdown("<h3 style='text-align: center; color: white;'>Coronal</h3>", unsafe_allow_html=True)
         idx_y = st.slider("slider_y", 0, y_max - 1, int(y_max / 2), key="y_slider", label_visibility="hidden")
         displayed_image_y = overlays[:, idx_y, :] if show_segmentation else grayscale_images[:, idx_y, :]
+        # Rotate the image 90 degrees counterclockwise
+        displayed_image_y = np.rot90(displayed_image_y)
+    
         st.image(resize_image(displayed_image_y), use_column_width=True)
 
     # Axial view with its slider
@@ -223,4 +228,6 @@ def plot_mri_slices_col(segmentation_data, structural_data, show_segmentation, t
         st.markdown("<h3 style='text-align: center; color: white;'>Axial</h3>", unsafe_allow_html=True)
         idx_z = st.slider("label_z", 0, z_max - 1, int(z_max / 2), key="z_slider", label_visibility="hidden")
         displayed_image_z = overlays[:, :, idx_z] if show_segmentation else grayscale_images[:, :, idx_z]
+        # Rotate the image 90 degrees counterclockwise
+        displayed_image_z = np.rot90(displayed_image_z)
         st.image(resize_image(displayed_image_z), use_column_width=True)

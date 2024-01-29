@@ -37,7 +37,7 @@ def squeeze_dim(arr, dim):
 
 @st.cache_data
 def get_cropped_stack_based_on_mask(
-    _image_ni, _mask_ni, boundary_i=15, boundary_j=15, boundary_k=0, unit="mm"
+    _image_ni, _mask_ni, uploaded_seg, boundary_i=15, boundary_j=15, boundary_k=0, unit="mm"
 ):
     """
     Crops the input image to the field of view given by the bounding box
@@ -51,6 +51,8 @@ def get_cropped_stack_based_on_mask(
         Nifti image
     mask_ni:
         Corresponding nifti mask
+    uploaded_seg:
+        Uploaded segmentation, only for caching purposes
     boundary_i:
     boundary_j:
     boundary_k:

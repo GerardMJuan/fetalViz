@@ -22,17 +22,18 @@ if 'seg_enabled' not in st.session_state:
 
 st.title("Fetal MRI Biomarker Visualization")
 
-uploaded_seg, uploaded_struct, df_data, config_model = create_sidebar()
+uploaded_seg, uploaded_struct, df_data, config_model, subject = create_sidebar()
 
 # Print current directory
 # st.write(os.getcwd())
 
-
 if uploaded_seg is not None and uploaded_struct is not None:
     segmentation, structural = load_mri_data(uploaded_seg, uploaded_struct)
 
+    #TODO: add information about the patient in a tabular format
+
     # process MRI data to be displayed
-    image_cropped, mask_cropped = get_cropped_stack_based_on_mask(structural, segmentation)
+    image_cropped, mask_cropped = get_cropped_stack_based_on_mask(structural, segmentation, uploaded_seg)
 
     col1, col2 = st.columns(2)
 
@@ -59,50 +60,29 @@ if uploaded_seg is not None and uploaded_struct is not None:
         config_model["segmentation"]["color_map"],
     )
 
-    # Sample data
-    np.random.seed(42)  # for reproducibility
-    data = {
-        "Age": np.random.randint(20, 40, 100),
-        "Volume": np.random.randn(100) * 10 + 100,
-        "Label": np.random.choice(
-            ["Background", "Grey Matter", "White Matter"], 100
-        ),
-    }
-    df = pd.DataFrame(data)
-
     # Dropdown for labels
-    label = st.selectbox(
-        "Choose a label", ["Background", "Grey Matter", "White Matter"]
+
+    label_long = st.selectbox(
+        "Choose a label", config_model["segmentation"]["labels_long"].values()
     )
 
-    # Filtering data based on label
-    filtered_df = df[df["Label"] == label]
+    # invert the dict
+    inv_dict = {v: k for k, v in config_model["segmentation"]["labels_long"].items()}
 
-    # Creating the plot
-    fig, ax = plt.subplots(figsize=(10, 6))
-    for lbl, group in df.groupby("Label"):
-        if lbl == label:
-            ax.scatter(
-                group["Age"], group["Volume"], label=lbl, s=60, alpha=0.7
-            )
-        else:
-            ax.scatter(
-                group["Age"], group["Volume"], label=lbl, s=30, alpha=0.3
-            )
+    # for the selected label, get the corresponding key
+    label = inv_dict[label_long]
 
-    current_subject_age = st.slider(
-        "Select current subject age",
-        min_value=20,
-        max_value=40,
-        value=25,
-    )
+    # select only rows where pathology == Neurotypical
+    df = df_data[df_data["pathology"] == "Neurotypical"]
+    fig, ax = plt.subplots()
+    ax.scatter(df["age"], df[label])
+    ax.set_xlabel('Age')
+    ax.set_ylabel('Label')
+    ax.set_title('Scatter plot of Age vs Label for Neurotypical subjects')
 
-    current_subject_volume = st.slider(
-        "Select current subject volume",
-        min_value=80,
-        max_value=120,
-        value=110,
-    )
+    # extract current subject age and volume from the df_data
+    current_subject_age = df_data[df_data["participant_id"] == subject]["age"].values[0]
+    current_subject_volume = df_data[df_data["participant_id"] == subject][label].values[0]
 
     ax.scatter(
         current_subject_age,
@@ -114,8 +94,8 @@ if uploaded_seg is not None and uploaded_struct is not None:
     )
     ax.legend()
     ax.set_xlabel("Age (Weeks)")
-    ax.set_ylabel("Volume")
-    ax.set_title(f"Volume vs Age for {label}")
+    ax.set_ylabel(label)
+    ax.set_title(f"Volume vs Age for {label_long}")
 
     # Displaying the plot
     st.pyplot(fig)
