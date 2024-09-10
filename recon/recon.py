@@ -7,15 +7,11 @@ import json
 import shutil
 import time
 import subprocess
-import docker
 import pandas as pd
 import nibabel as nib
 import copy
 import numpy as np
 import glob
-
-DOCKER_NIFTYMIC = "gerardmartijuan/niftymic.multifact"
-DOCKER_ANTS = "antsx/ants:master"
 
 def apply_masks(list_fo_files, list_of_masks):
     """apply the corresponding mask to each file, overwriting it"""
@@ -212,22 +208,6 @@ def create_brain_masks(
 
     GPU disabled by default
     """
-    # get base directory of the files (it will be the same for all)
-    base_dir = os.path.dirname(list_of_files[0])
-    # replace the base dir with docker dir /app/NiftyMIC/nifti/
-    list_of_files = [
-        str(x).replace(base_dir, "/app/NiftyMIC/nifti") for x in list_of_files
-    ]
-    base_dir_mask = os.path.dirname(list_of_masks[0])
-
-    # create base_dir_mask if it does not exist
-    if not os.path.exists(base_dir_mask):
-        os.makedirs(base_dir_mask)
-
-    list_of_masks = [
-        str(x).replace(base_dir_mask, "/app/NiftyMIC/masks")
-        for x in list_of_masks
-    ]
     command = [
         "niftymic_segment_fetal_brains",
         "--filenames",
@@ -236,34 +216,15 @@ def create_brain_masks(
         " ".join(str(x) for x in sorted(list_of_masks)),
     ]
     command = " ".join(command)
-    client = docker.from_env()
-
-    # check if gpu is available
-    if not gpu:
-        dev_req = []
-    else:
-        dev_req = [
-            docker.types.DeviceRequest(count=-1, capabilities=[["gpu"]])
-        ]
-
-    container = client.containers.run(
-        DOCKER_NIFTYMIC,
-        user=os.getuid(),
-        command=command,
-        volumes={
-            base_dir: {"bind": "/app/NiftyMIC/nifti", "mode": "rw"},
-            base_dir_mask: {"bind": "/app/NiftyMIC/masks", "mode": "rw"},
-        },
-        device_requests=dev_req,
-        detach=True,
-        stderr=True,
-        stdout=True,
-    )
-    container.wait()
-
-    # save the logs to the output folder
+    
+    # Run the command directly
+    result = subprocess.run(command, shell=True, capture_output=True, text=True)
+    
+    # Save the logs to the output folder
+    base_dir = os.path.dirname(list_of_files[0])
     with open(f"{base_dir}/log_masks.txt", "w") as f:
-        f.write(container.logs().decode("utf-8"))
+        f.write(result.stdout)
+        f.write(result.stderr)
 
 
 def crop_image_to_region(
@@ -366,125 +327,50 @@ def reconstruct_volume(
 ):
     """
     Reconstructs the volume using the specified algorithm
-    And in the specified environment.
-
-
     """
     list_of_files = glob.glob(os.path.join(input_recon_dir, "*.nii.gz"))
     list_of_masks = glob.glob(os.path.join(mask_recon_dir, "*.nii.gz"))
 
     if algorithm == "niftymic":
-        docker_image = DOCKER_NIFTYMIC
-        docker_command = [
+        command = [
             "niftymic_run_reconstruction_pipeline",
             "--filenames",
-            " ".join(
-                os.path.join("/input", os.path.basename(x))
-                for x in sorted(list_of_files)
-            ),
+            " ".join(str(x) for x in sorted(list_of_files)),
             "--filenames-masks",
-            " ".join(
-                os.path.join("/masks", os.path.basename(x))
-                for x in sorted(list_of_masks)
-            ),
+            " ".join(str(x) for x in sorted(list_of_masks)),
             "--dir-output",
-            "/srr",
+            recon_dir,
             "--isotropic-resolution",
             "0.8",
             "--suffix-mask",
-            "_mask" "--alpha" "0.01",
+            "_mask",
+            "--alpha",
+            "0.01",
             "--automatic-target-stack",
             "1",
             "--run-bias-field-correction",
             "1",
         ]
-        docker_command = " ".join(docker_command)
-        docker_volumes = {
-            recon_dir: {"bind": "/srr", "mode": "rw"},
-            input_recon_dir: {"bind": "/input", "mode": "rw"},
-            mask_recon_dir: {"bind": "/masks", "mode": "rw"},
-        }
+        command = " ".join(command)
+        
+        # Run the command directly
+        result = subprocess.run(command, shell=True, capture_output=True, text=True)
+        
+        # Save the logs to the output folder
+        with open(f"{recon_dir}/log_{algorithm}.txt", "w") as f:
+            f.write(result.stdout)
+            f.write(result.stderr)
 
-    elif algorithm == "nesvor":
-        print('nyi')
-        # docker_image = DOCKER_NESVOR
-        # docker_command = [
-            # "nesvor",
-            # "reconstruct",
-            # "--input-stacks",
-            # " ".join(str(x) for x in sorted(list_of_files)),
-            # "--stack-masks",
-            # " ".join(str(x) for x in sorted(list_of_masks)),
-            # "--output-volume",
-            # "/out/nesvor.nii.gz",
-            # "--output-resolution",
-            # "--bias-field-correction",
-            # "0.8",
-            # "--n-levels-bias",
-            # "1",
-            # "--batch-size",
-            # "8192",
-        # ]
-        # docker_command = " ".join(docker_command)
-        # docker_volumes = {
-            # recon_dir: {"bind": "/out", "mode": "rw"},
-            # input_recon_dir: {"bind": "/data", "mode": "rw"},
-            # mask_recon_dir: {"bind": "/data", "mode": "rw"},
-        # }
-# 
-    elif algorithm == "svrtk":
-        print('nyi')
-        # docker_image = DOCKER_SVRTK
-        # docker_command = [
-        #     "bash",
-        #     "/home/auto-proc-svrtk/auto-brain-reconstruction.sh",
-        #     "/home/data/input",
-        #     "/home/data",
-        # ]
-        # docker_command = " ".join(docker_command)
-        # docker_volumes = {
-        #     recon_dir: {"bind": "/home/data", "mode": "rw"},
-        # }
-
-    # use the docker interface for python
-    client = docker.from_env()
-
-    if algorithm != "nesvor":
-        # no need for gpu
-        gpu = []
-    else:
-        gpu = [
-            docker.types.DeviceRequest(count=-1, capabilities=[["gpu"]])
-        ]
-
-    container = client.containers.run(
-        docker_image,
-        user=os.getuid(),
-        command=docker_command,
-        volumes=docker_volumes,
-        detach=True,
-        device_requests=gpu,
-        stderr=True,
-        stdout=True,
-    )
-    container.wait()
-    # save the logs to the output folder
-    with open(f"{recon_dir}/log_{algorithm}.txt", "w") as f:
-        f.write(container.logs().decode("utf-8"))
-
-    container.remove()
-
-    # for each algorithm, copy the result to the output folder
-    # with the correct BIDS name
-    if algorithm == "niftymic":
         result_img = f"{recon_dir}/recon_template_space/srr_template.nii.gz"
-        result_mask = (
-            f"{recon_dir}/recon_template_space/srr_template_mask.nii.gz"
-        )
+        result_mask = f"{recon_dir}/recon_template_space/srr_template_mask.nii.gz"
+    
     elif algorithm == "nesvor":
+        print('nyi')
         result_img = f"{recon_dir}/nesvor.nii.gz"
         result_mask = None
+    
     elif algorithm == "svrtk":
+        print('nyi')
         result_img = f"{recon_dir}/reo-SVR-output-brain.nii.gz"
         result_mask = None
 
