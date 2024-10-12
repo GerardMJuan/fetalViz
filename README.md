@@ -1,2 +1,4 @@
 # fetalViz
-Fetal visualization prototyping. using streamlit
+Fetal visualization prototyping. Various prototypes are available.
+
+Code here is very WIP.
